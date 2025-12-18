@@ -6,12 +6,40 @@ import FormattedTicket from './components/FormattedTicket';
 import TicketSkeleton from './components/TicketSkeleton';
 import SearchableSelect from './components/SearchableSelect';
 
+// Helper function to detect deployment platform and get API endpoint
+const getApiEndpoint = (functionName) => {
+  // Check for explicit API URL override
+  if (import.meta.env.VITE_API_URL) {
+    const baseUrl = import.meta.env.VITE_API_URL;
+    // Replace the function name in the URL if it exists
+    return baseUrl.includes('generate-ticket') 
+      ? baseUrl.replace('generate-ticket', functionName)
+      : `${baseUrl}/${functionName}`;
+  }
+  
+  // Local development
+  if (!import.meta.env.PROD) {
+    return `http://localhost:3001/api/${functionName}`;
+  }
+  
+  // Production: detect platform by hostname
+  try {
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    if (hostname.includes('vercel.app') || hostname.includes('vercel.com')) {
+      // Vercel: use /api/ path
+      return `/api/${functionName}`;
+    } else {
+      // Netlify: use /.netlify/functions/ path (default)
+      return `/.netlify/functions/${functionName}`;
+    }
+  } catch (e) {
+    // Fallback to Netlify if detection fails
+    return `/.netlify/functions/${functionName}`;
+  }
+};
+
 // API endpoint - uses backend proxy to avoid CORS issues
-const API_ENDPOINT = import.meta.env.VITE_API_URL || (
-  import.meta.env.PROD 
-    ? '/.netlify/functions/generate-ticket'  // Netlify production
-    : 'http://localhost:3001/api/generate-ticket'  // Local development
-);
+const API_ENDPOINT = getApiEndpoint('generate-ticket');
 
 // Enhanced encryption/decryption for localStorage
 // NOTE: This is obfuscation, not true encryption. Sensitive data like API tokens
@@ -830,9 +858,7 @@ export default function BugTrackerApp() {
 
     try {
       // Use backend proxy to test connection
-      const TEST_JIRA_ENDPOINT = import.meta.env.PROD 
-        ? '/.netlify/functions/test-jira'  // Netlify production
-        : 'http://localhost:3001/api/test-jira';  // Local development
+      const TEST_JIRA_ENDPOINT = getApiEndpoint('test-jira');
 
       const response = await fetchWithTimeout(TEST_JIRA_ENDPOINT, {
         method: 'POST',
@@ -1166,9 +1192,7 @@ export default function BugTrackerApp() {
       setJiraPushStep('Validating Jira connection...');
       
       // Use backend proxy to avoid CORS issues
-      const JIRA_ENDPOINT = import.meta.env.PROD 
-        ? '/.netlify/functions/push-to-jira'  // Netlify production
-        : 'http://localhost:3001/api/push-to-jira';  // Local development
+      const JIRA_ENDPOINT = getApiEndpoint('push-to-jira');
 
       // Prepare request payload
       const requestPayload = {
