@@ -1822,6 +1822,10 @@ CRITICAL FORMATTING RULES:
       setLoadingStep('🧠 Using AI to understand the issue deeply...');
       setLoadingProgress(60);
       
+      // Debug: Log the endpoint being used
+      console.log('🔍 Calling API endpoint:', API_ENDPOINT);
+      console.log('🔍 Current hostname:', typeof window !== 'undefined' ? window.location.hostname : 'N/A');
+      
       const response = await fetchWithTimeout(API_ENDPOINT, {
         method: 'POST',
         headers: {
@@ -1832,15 +1836,49 @@ CRITICAL FORMATTING RULES:
         })
       }, 90000); // 90 second timeout for AI generation
 
+      // Check content type before parsing
+      const contentType = response.headers.get('content-type') || '';
+      const isJson = contentType.includes('application/json');
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate ticket');
+        let errorMessage = 'Failed to generate ticket';
+        
+        if (isJson) {
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorMessage;
+          } catch (e) {
+            errorMessage = `Server error (${response.status}). Please check your API endpoint configuration.`;
+          }
+        } else {
+          // Not JSON - likely HTML error page (404, 500, etc.)
+          const textResponse = await response.text();
+          console.error('Non-JSON error response:', textResponse.substring(0, 200));
+          
+          if (response.status === 404) {
+            errorMessage = `❌ API endpoint not found (404). The endpoint "${API_ENDPOINT}" may be incorrect. Please check your deployment configuration.`;
+          } else if (response.status === 500) {
+            errorMessage = '❌ Server error (500). Please check your API key and server configuration.';
+          } else {
+            errorMessage = `❌ Server returned non-JSON response (${response.status}). Please check your API endpoint.`;
+          }
+        }
+        
+        throw new Error(errorMessage);
       }
 
       setLoadingStep('✍️ Crafting a professional ticket for you...');
       setLoadingProgress(80);
       
-      const data = await response.json();
+      // Parse response with error handling
+      let data;
+      if (isJson) {
+        data = await response.json();
+      } else {
+        const textResponse = await response.text();
+        console.error('Expected JSON but got:', textResponse.substring(0, 200));
+        throw new Error(`❌ Server returned non-JSON response. Endpoint: ${API_ENDPOINT}. Please check your deployment configuration.`);
+      }
       const ticketContent = data.content
         .filter(item => item.type === 'text')
         .map(item => item.text)

@@ -2,12 +2,17 @@
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 
 export default async function handler(req, res) {
+  // Always set Content-Type to JSON
+  res.setHeader('Content-Type', 'application/json');
+  
   // Validate API key is set
   if (!ANTHROPIC_API_KEY) {
+    console.error('ANTHROPIC_API_KEY is not set in environment variables');
     return res.status(500).json({ 
-      error: 'Server configuration error: API key not set' 
+      error: 'Server configuration error: API key not set. Please configure ANTHROPIC_API_KEY in Vercel environment variables.' 
     });
   }
+  
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
