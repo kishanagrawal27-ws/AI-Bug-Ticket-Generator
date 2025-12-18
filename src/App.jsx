@@ -7,6 +7,7 @@ import TicketSkeleton from './components/TicketSkeleton';
 import SearchableSelect from './components/SearchableSelect';
 
 // Helper function to detect deployment platform and get API endpoint
+// This must be called at runtime, not at module load time
 const getApiEndpoint = (functionName) => {
   // Check for explicit API URL override
   if (import.meta.env.VITE_API_URL) {
@@ -22,24 +23,51 @@ const getApiEndpoint = (functionName) => {
     return `http://localhost:3001/api/${functionName}`;
   }
   
-  // Production: detect platform by hostname
+  // Production: detect platform by hostname at runtime
   try {
-    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
-    if (hostname.includes('vercel.app') || hostname.includes('vercel.com')) {
-      // Vercel: use /api/ path
-      return `/api/${functionName}`;
-    } else {
-      // Netlify: use /.netlify/functions/ path (default)
-      return `/.netlify/functions/${functionName}`;
+    if (typeof window !== 'undefined' && window.location) {
+      const hostname = window.location.hostname.toLowerCase();
+      const href = window.location.href.toLowerCase();
+      
+      // Check for Vercel domains (including preview URLs)
+      // Vercel URLs can be: *.vercel.app, *.vercel.com, or *-*-*-*.vercel.app (preview)
+      if (hostname.includes('vercel.app') || 
+          hostname.includes('vercel.com') ||
+          href.includes('vercel.app') ||
+          href.includes('vercel.com') ||
+          hostname.endsWith('.vercel.app') ||
+          hostname.endsWith('.vercel.com')) {
+        console.log('✅ Detected Vercel platform, using /api/ endpoint');
+        return `/api/${functionName}`;
+      }
+      
+      // Check for Netlify domains
+      if (hostname.includes('netlify.app') || 
+          hostname.includes('netlify.com') ||
+          href.includes('netlify.app') ||
+          href.includes('netlify.com') ||
+          hostname.endsWith('.netlify.app') ||
+          hostname.endsWith('.netlify.com')) {
+        console.log('✅ Detected Netlify platform, using /.netlify/functions/ endpoint');
+        return `/.netlify/functions/${functionName}`;
+      }
+      
+      // If we can't detect, log for debugging
+      console.warn('⚠️ Could not detect platform from hostname:', hostname);
     }
+    
+    // Default fallback: try Vercel first (more common now), then Netlify
+    console.warn('⚠️ Using default endpoint detection');
+    return `/api/${functionName}`;
   } catch (e) {
-    // Fallback to Netlify if detection fails
-    return `/.netlify/functions/${functionName}`;
+    console.error('❌ Error detecting platform:', e);
+    // Fallback to Vercel if detection fails
+    return `/api/${functionName}`;
   }
 };
 
-// API endpoint - uses backend proxy to avoid CORS issues
-const API_ENDPOINT = getApiEndpoint('generate-ticket');
+// API endpoint - will be set at runtime when function is called
+// We'll call getApiEndpoint() each time to ensure fresh detection
 
 // Enhanced encryption/decryption for localStorage
 // NOTE: This is obfuscation, not true encryption. Sensitive data like API tokens
@@ -1438,6 +1466,8 @@ export default function BugTrackerApp() {
 
     setIsEnhancing(true);
     try {
+      // Get API endpoint at runtime to ensure correct platform detection
+      const API_ENDPOINT = getApiEndpoint('generate-ticket');
       const response = await fetchWithTimeout(API_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1822,9 +1852,13 @@ CRITICAL FORMATTING RULES:
       setLoadingStep('🧠 Using AI to understand the issue deeply...');
       setLoadingProgress(60);
       
+      // Get API endpoint at runtime (not module load time) to ensure correct detection
+      const API_ENDPOINT = getApiEndpoint('generate-ticket');
+      
       // Debug: Log the endpoint being used
       console.log('🔍 Calling API endpoint:', API_ENDPOINT);
       console.log('🔍 Current hostname:', typeof window !== 'undefined' ? window.location.hostname : 'N/A');
+      console.log('🔍 Full URL:', typeof window !== 'undefined' ? window.location.href : 'N/A');
       
       const response = await fetchWithTimeout(API_ENDPOINT, {
         method: 'POST',
