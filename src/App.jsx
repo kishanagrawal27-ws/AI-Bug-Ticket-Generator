@@ -1868,12 +1868,22 @@ CRITICAL FORMATTING RULES:
       setLoadingProgress(60);
       
       // Get API endpoint at runtime (not module load time) to ensure correct detection
-      const API_ENDPOINT = getApiEndpoint('generate-ticket');
+      let API_ENDPOINT = getApiEndpoint('generate-ticket');
+      
+      // Force Vercel endpoint if we're on a Vercel domain (safety check)
+      if (typeof window !== 'undefined' && window.location) {
+        const hostname = window.location.hostname.toLowerCase();
+        if (hostname.includes('vercel') && !API_ENDPOINT.startsWith('/api/')) {
+          console.warn('⚠️ Forcing Vercel endpoint - detection may have failed');
+          API_ENDPOINT = `/api/generate-ticket`;
+        }
+      }
       
       // Debug: Log the endpoint being used
       console.log('🔍 Calling API endpoint:', API_ENDPOINT);
       console.log('🔍 Current hostname:', typeof window !== 'undefined' ? window.location.hostname : 'N/A');
       console.log('🔍 Full URL:', typeof window !== 'undefined' ? window.location.href : 'N/A');
+      console.log('🔍 Is Production:', import.meta.env.PROD);
       
       const response = await fetchWithTimeout(API_ENDPOINT, {
         method: 'POST',
