@@ -1,5 +1,6 @@
 // Vercel Serverless Function for API proxy
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+// Clean and trim the API key to remove any whitespace/newlines
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ? process.env.ANTHROPIC_API_KEY.trim().replace(/\s+/g, '') : null;
 
 export default async function handler(req, res) {
   // Always set Content-Type to JSON
