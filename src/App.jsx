@@ -1868,21 +1868,47 @@ CRITICAL FORMATTING RULES:
       setLoadingProgress(60);
       
       // Get API endpoint at runtime (not module load time) to ensure correct detection
-      let API_ENDPOINT = getApiEndpoint('generate-ticket');
+      // CRITICAL: Direct check of current URL to determine platform
+      let API_ENDPOINT = '/api/generate-ticket'; // Default to Vercel
       
-      // Force Vercel endpoint if we're on a Vercel domain (safety check)
       if (typeof window !== 'undefined' && window.location) {
         const hostname = window.location.hostname.toLowerCase();
-        if (hostname.includes('vercel') && !API_ENDPOINT.startsWith('/api/')) {
-          console.warn('⚠️ Forcing Vercel endpoint - detection may have failed');
+        const href = window.location.href.toLowerCase();
+        
+        // Direct check - if hostname contains vercel, use /api/
+        if (hostname.includes('vercel.app') || hostname.includes('vercel.com') || href.includes('vercel')) {
+          API_ENDPOINT = `/api/generate-ticket`;
+          console.log('✅ Direct detection: Using Vercel endpoint (/api/)');
+        } 
+        // Direct check - if hostname contains netlify, use /.netlify/functions/
+        else if (hostname.includes('netlify.app') || hostname.includes('netlify.com') || href.includes('netlify')) {
+          API_ENDPOINT = `/.netlify/functions/generate-ticket`;
+          console.log('✅ Direct detection: Using Netlify endpoint (/.netlify/functions/)');
+        }
+        // Fallback to helper function
+        else {
+          API_ENDPOINT = getApiEndpoint('generate-ticket');
+          console.log('⚠️ Using helper function detection');
+        }
+        
+        console.log('🔍 Current hostname:', hostname);
+        console.log('🔍 Full URL:', href);
+      } else {
+        // Fallback if window not available
+        API_ENDPOINT = getApiEndpoint('generate-ticket');
+      }
+      
+      // Final safety check - NEVER allow Netlify endpoint on Vercel domain
+      if (typeof window !== 'undefined' && window.location) {
+        const hostname = window.location.hostname.toLowerCase();
+        if (hostname.includes('vercel') && API_ENDPOINT.includes('netlify')) {
+          console.error('❌ ERROR: Netlify endpoint detected on Vercel domain! Forcing Vercel endpoint.');
           API_ENDPOINT = `/api/generate-ticket`;
         }
       }
       
       // Debug: Log the endpoint being used
-      console.log('🔍 Calling API endpoint:', API_ENDPOINT);
-      console.log('🔍 Current hostname:', typeof window !== 'undefined' ? window.location.hostname : 'N/A');
-      console.log('🔍 Full URL:', typeof window !== 'undefined' ? window.location.href : 'N/A');
+      console.log('🔍 Final API endpoint:', API_ENDPOINT);
       console.log('🔍 Is Production:', import.meta.env.PROD);
       
       const response = await fetchWithTimeout(API_ENDPOINT, {
