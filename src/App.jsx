@@ -6,8 +6,31 @@ import FormattedTicket from './components/FormattedTicket';
 import TicketSkeleton from './components/TicketSkeleton';
 import SearchableSelect from './components/SearchableSelect';
 
+// Helper function that ALWAYS does direct URL-based detection (most reliable)
+const getApiEndpointDirect = (functionName) => {
+  // Default to Vercel endpoint
+  let endpoint = `/api/${functionName}`;
+  
+  if (typeof window !== 'undefined' && window.location) {
+    const hostname = window.location.hostname.toLowerCase();
+    const href = window.location.href.toLowerCase();
+    
+    // Direct check - if hostname contains vercel, use /api/
+    if (hostname.includes('vercel.app') || hostname.includes('vercel.com') || href.includes('vercel')) {
+      endpoint = `/api/${functionName}`;
+    } 
+    // Direct check - if hostname contains netlify, use /.netlify/functions/
+    else if (hostname.includes('netlify.app') || hostname.includes('netlify.com') || href.includes('netlify')) {
+      endpoint = `/.netlify/functions/${functionName}`;
+    }
+  }
+  
+  return endpoint;
+};
+
 // Helper function to detect deployment platform and get API endpoint
 // This must be called at runtime, not at module load time
+// NOTE: Prefer getApiEndpointDirect() for more reliable detection
 const getApiEndpoint = (functionName) => {
   // Check for explicit API URL override (highest priority)
   if (import.meta.env.VITE_API_URL) {
@@ -901,7 +924,7 @@ export default function BugTrackerApp() {
 
     try {
       // Use backend proxy to test connection
-      const TEST_JIRA_ENDPOINT = getApiEndpoint('test-jira');
+      const TEST_JIRA_ENDPOINT = getApiEndpointDirect('test-jira');
 
       const response = await fetchWithTimeout(TEST_JIRA_ENDPOINT, {
         method: 'POST',
@@ -1235,7 +1258,7 @@ export default function BugTrackerApp() {
       setJiraPushStep('Validating Jira connection...');
       
       // Use backend proxy to avoid CORS issues
-      const JIRA_ENDPOINT = getApiEndpoint('push-to-jira');
+      const JIRA_ENDPOINT = getApiEndpointDirect('push-to-jira');
 
       // Prepare request payload
       const requestPayload = {
@@ -1481,8 +1504,8 @@ export default function BugTrackerApp() {
 
     setIsEnhancing(true);
     try {
-      // Get API endpoint at runtime to ensure correct platform detection
-      const API_ENDPOINT = getApiEndpoint('generate-ticket');
+      // Use direct detection for reliability
+      const API_ENDPOINT = getApiEndpointDirect('generate-ticket');
       const response = await fetchWithTimeout(API_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1867,48 +1890,15 @@ CRITICAL FORMATTING RULES:
       setLoadingStep('🧠 Using AI to understand the issue deeply...');
       setLoadingProgress(60);
       
-      // Get API endpoint at runtime (not module load time) to ensure correct detection
-      // CRITICAL: Direct check of current URL to determine platform
-      let API_ENDPOINT = '/api/generate-ticket'; // Default to Vercel
-      
-      if (typeof window !== 'undefined' && window.location) {
-        const hostname = window.location.hostname.toLowerCase();
-        const href = window.location.href.toLowerCase();
-        
-        // Direct check - if hostname contains vercel, use /api/
-        if (hostname.includes('vercel.app') || hostname.includes('vercel.com') || href.includes('vercel')) {
-          API_ENDPOINT = `/api/generate-ticket`;
-          console.log('✅ Direct detection: Using Vercel endpoint (/api/)');
-        } 
-        // Direct check - if hostname contains netlify, use /.netlify/functions/
-        else if (hostname.includes('netlify.app') || hostname.includes('netlify.com') || href.includes('netlify')) {
-          API_ENDPOINT = `/.netlify/functions/generate-ticket`;
-          console.log('✅ Direct detection: Using Netlify endpoint (/.netlify/functions/)');
-        }
-        // Fallback to helper function
-        else {
-          API_ENDPOINT = getApiEndpoint('generate-ticket');
-          console.log('⚠️ Using helper function detection');
-        }
-        
-        console.log('🔍 Current hostname:', hostname);
-        console.log('🔍 Full URL:', href);
-      } else {
-        // Fallback if window not available
-        API_ENDPOINT = getApiEndpoint('generate-ticket');
-      }
-      
-      // Final safety check - NEVER allow Netlify endpoint on Vercel domain
-      if (typeof window !== 'undefined' && window.location) {
-        const hostname = window.location.hostname.toLowerCase();
-        if (hostname.includes('vercel') && API_ENDPOINT.includes('netlify')) {
-          console.error('❌ ERROR: Netlify endpoint detected on Vercel domain! Forcing Vercel endpoint.');
-          API_ENDPOINT = `/api/generate-ticket`;
-        }
-      }
+      // Use direct detection for maximum reliability
+      const API_ENDPOINT = getApiEndpointDirect('generate-ticket');
       
       // Debug: Log the endpoint being used
-      console.log('🔍 Final API endpoint:', API_ENDPOINT);
+      console.log('🔍 Calling API endpoint:', API_ENDPOINT);
+      if (typeof window !== 'undefined' && window.location) {
+        console.log('🔍 Current hostname:', window.location.hostname);
+        console.log('🔍 Full URL:', window.location.href);
+      }
       console.log('🔍 Is Production:', import.meta.env.PROD);
       
       const response = await fetchWithTimeout(API_ENDPOINT, {
