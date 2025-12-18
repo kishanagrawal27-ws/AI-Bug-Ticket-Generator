@@ -9,13 +9,21 @@ import SearchableSelect from './components/SearchableSelect';
 // Helper function to detect deployment platform and get API endpoint
 // This must be called at runtime, not at module load time
 const getApiEndpoint = (functionName) => {
-  // Check for explicit API URL override
+  // Check for explicit API URL override (highest priority)
   if (import.meta.env.VITE_API_URL) {
     const baseUrl = import.meta.env.VITE_API_URL;
     // Replace the function name in the URL if it exists
     return baseUrl.includes('generate-ticket') 
       ? baseUrl.replace('generate-ticket', functionName)
       : `${baseUrl}/${functionName}`;
+  }
+  
+  // Check for explicit platform override via environment variable
+  if (import.meta.env.VITE_PLATFORM === 'vercel') {
+    return `/api/${functionName}`;
+  }
+  if (import.meta.env.VITE_PLATFORM === 'netlify') {
+    return `/.netlify/functions/${functionName}`;
   }
   
   // Local development
@@ -29,35 +37,42 @@ const getApiEndpoint = (functionName) => {
       const hostname = window.location.hostname.toLowerCase();
       const href = window.location.href.toLowerCase();
       
+      console.log('🔍 Platform detection - hostname:', hostname, 'href:', href);
+      
       // Check for Vercel domains (including preview URLs)
       // Vercel URLs can be: *.vercel.app, *.vercel.com, or *-*-*-*.vercel.app (preview)
-      if (hostname.includes('vercel.app') || 
+      const isVercel = hostname.includes('vercel.app') || 
           hostname.includes('vercel.com') ||
           href.includes('vercel.app') ||
           href.includes('vercel.com') ||
           hostname.endsWith('.vercel.app') ||
-          hostname.endsWith('.vercel.com')) {
+          hostname.endsWith('.vercel.com');
+      
+      if (isVercel) {
         console.log('✅ Detected Vercel platform, using /api/ endpoint');
         return `/api/${functionName}`;
       }
       
       // Check for Netlify domains
-      if (hostname.includes('netlify.app') || 
+      const isNetlify = hostname.includes('netlify.app') || 
           hostname.includes('netlify.com') ||
           href.includes('netlify.app') ||
           href.includes('netlify.com') ||
           hostname.endsWith('.netlify.app') ||
-          hostname.endsWith('.netlify.com')) {
+          hostname.endsWith('.netlify.com');
+      
+      if (isNetlify) {
         console.log('✅ Detected Netlify platform, using /.netlify/functions/ endpoint');
         return `/.netlify/functions/${functionName}`;
       }
       
       // If we can't detect, log for debugging
-      console.warn('⚠️ Could not detect platform from hostname:', hostname);
+      console.warn('⚠️ Could not detect platform from hostname:', hostname, 'Defaulting to Vercel');
     }
     
-    // Default fallback: try Vercel first (more common now), then Netlify
-    console.warn('⚠️ Using default endpoint detection');
+    // Default fallback: ALWAYS use Vercel in production if detection fails
+    // (since user is deploying to Vercel)
+    console.warn('⚠️ Using default Vercel endpoint (detection failed)');
     return `/api/${functionName}`;
   } catch (e) {
     console.error('❌ Error detecting platform:', e);
